@@ -1,0 +1,22 @@
+[Unit]
+Description=Contest Notifier - alert that the sync service failed to run
+Documentation=file:/home/goutamdogri/Projects/fun_project/contest_notifier/README.md
+
+[Service]
+Type=oneshot
+
+# OnFailure= lands here whenever contest-notifier.service fails: 203/EXEC because a
+# node path vanished, a crash, a non-zero exit, a timeout. Without this the timer
+# keeps firing and failing invisibly, which is how the nvm-upgrade outage went
+# unnoticed for a week. This prints the reason to the journal and pops a desktop
+# notification.
+
+# Surface the failure and the exact exit status in the journal.
+ExecStart=/bin/sh -c 'systemctl --user status contest-notifier.service --no-pager --lines=15 | systemd-cat -t contest-notifier-failure'
+
+# Best effort desktop pop-up. Uses the system notify-send, not the app's logger,
+# because the app may never have started.
+ExecStart=/usr/bin/notify-send --urgency=critical --app-name='Contest Notifier' -- 'Contest Notifier: background sync failed' 'The hourly sync did not run. Check: journalctl --user -u contest-notifier.service'
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Contest Notifier - Privacy Policy</title>
+    <style>
+      body { font-family: system-ui, sans-serif; max-width: 40rem; margin: 3rem auto; padding: 0 1rem; line-height: 1.6; }
+      code { background: #f2f2f2; padding: 0.1rem 0.3rem; border-radius: 4px; }
+      h1 { font-size: 1.6rem; }
+    </style>
+  </head>
+  <body>
+    <h1>Privacy Policy</h1>
+    <p>Last updated: 15 October 2026</p>
+
+    <p>
+      Contest Notifier is a personal, self-hosted command-line tool. This policy
+      explains what the tool does with Google data.
+    </p>
+
+    <h2>What data is accessed</h2>
+    <p>
+      After you grant consent, the tool requests two Google OAuth scopes:
+    </p>
+    <ul>
+      <li><code>https://www.googleapis.com/auth/calendar.events</code> — to create, update and delete contest events on a calendar you choose (default: your primary calendar).</li>
+      <li><code>https://www.googleapis.com/auth/tasks</code> — to create and remove reminder tasks in a task list you choose.</li>
+    </ul>
+    <p>
+      The tool does not read your email, contacts, files, or any other Google data.
+      It only manages calendar events and tasks that it creates itself, plus the
+      single calendar and task list it is configured to use.
+    </p>
+
+    <h2>Where data is stored</h2>
+    <p>
+      The OAuth refresh token is stored locally on the machine running the tool, in
+      <code>~/.config/contest-notifier/token.json</code>, with file permissions
+      <code>0600</code> (readable only by your user account). Contest data is cached
+      in a local SQLite database in <code>~/.local/state/contest-notifier/</code>.
+    </p>
+    <p>
+      No data is sent to any third party. The tool talks to two kinds of servers:
+      the public contest sites (to read schedules) and Google's APIs (to write your
+      calendar and tasks). There is no analytics, no telemetry, and no server
+      operated by the author.
+    </p>
+
+    <h2>Data sharing</h2>
+    <p>
+      No personal data is shared, sold, or transferred to anyone. The tool is
+      single-user and runs entirely on your own hardware.
+    </p>
+
+    <h2>Revoking access</h2>
+    <p>
+      You can revoke the tool's access at any time from your
+      <a href="https://myaccount.google.com/permissions">Google Account permissions</a>
+      page, or by deleting the token file. Revoking access immediately stops all
+      further access.
+    </p>
+
+    <h2>Contact</h2>
+    <p>
+      Questions about this policy can be raised through the project's issue tracker:
+      <a href="https://github.com/goutamdogri/contest_notifier/issues">GitHub issues</a>.
+    </p>
+  </body>
+</html>

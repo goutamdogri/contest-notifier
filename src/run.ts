@@ -94,14 +94,18 @@ export async function run(config: Config, options: RunOptions = {}): Promise<Run
     const { contests, failures } = await fetchAll(config, now, enabled);
     summary.fetched = contests.length;
 
-    for (const platform of enabled) {
-      store.setSourceState(platform, 'ok');
-    }
     for (const failure of failures) {
       const platform = failure.platform;
       if (candidates.includes(platform)) store.setSourceState(platform, 'error', failure.error);
       summary.failures.push({ scope: `source:${platform}`, error: failure.error });
     }
+
+    // Source success is recorded only after the sync below succeeds. Advancing the
+    // fetch clock here would mean that when a later step fails (most often Google
+    // auth), the freshly fetched contests are discarded but the sources look
+    // up-to-date, so the next runs skip them and the data is lost until the poll
+    // interval elapses. Left until later, a failed run simply refetches next time.
+    const fetchedOk = enabled.filter((p) => !failures.some((f) => f.platform === p));
 
     // Alert on a provider outage the moment it happens. Gated per provider so a
     // chronically flaky source can be silenced on its own without losing alerting
@@ -229,6 +233,12 @@ export async function run(config: Config, options: RunOptions = {}): Promise<Run
         `${names}${extra}`,
         config.notifications.desktop,
       );
+    }
+
+    // Sync finished, so the fetched contests are persisted; now it is safe to
+    // advance the fetch clock for the sources that actually returned.
+    for (const platform of fetchedOk) {
+      store.setSourceState(platform, 'ok');
     }
 
     log.info('run complete', {

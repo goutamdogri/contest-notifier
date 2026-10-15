@@ -4,12 +4,18 @@ Documentation=file:/home/goutamdogri/Projects/fun_project/contest_notifier/READM
 After=network-online.target
 Wants=network-online.target
 
+# Raise a loud desktop notification instead of failing silently if a run ever
+# fails to start (203/EXEC, crash, non-zero exit).
+OnFailure=contest-notifier-failure.service
+
 [Service]
 Type=oneshot
 WorkingDirectory=/home/goutamdogri/Projects/fun_project/contest_notifier
 
-# nvm installs are not on systemd's default PATH, so node is referenced by full path.
-ExecStart=/home/goutamdogri/.nvm/versions/node/v24.13.0/bin/node --disable-warning=ExperimentalWarning /home/goutamdogri/Projects/fun_project/contest_notifier/dist/cli.js run --non-interactive --quiet
+# Use the system Node rather than an nvm version. nvm paths are version-pinned
+# (e.g. .../node/v24.13.0/bin/node) and vanish on upgrade, which silently broke
+# this service with status=203/EXEC for a week. /usr/bin/node is stable.
+ExecStart=/usr/bin/node --disable-warning=ExperimentalWarning /home/goutamdogri/Projects/fun_project/contest_notifier/dist/cli.js run --non-interactive --quiet
 
 # A slow or flaky network should not permanently disable the timer.
 TimeoutStartSec=240

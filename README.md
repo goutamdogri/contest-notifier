@@ -101,7 +101,7 @@ npm run dry-run -- --bodies   # the exact events.insert request bodies
 
 ```bash
 mkdir -p ~/.config/systemd/user
-cp systemd/contest-notifier.{service,timer} ~/.config/systemd/user/
+cp systemd/contest-notifier.{service,timer,failure.service} ~/.config/systemd/user/
 systemctl --user daemon-reload
 systemctl --user enable --now contest-notifier.timer
 
@@ -113,9 +113,19 @@ systemctl --user list-timers contest-notifier.timer
 journalctl --user -u contest-notifier.service -n 50
 ```
 
-> The `.service` file hard-codes Node's absolute path, because nvm installs are not
-> on systemd's `PATH`. If you upgrade Node, edit `ExecStart`. Current path:
-> `/home/goutamdogri/.nvm/versions/node/v24.13.0/bin/node`
+> **Node path.** The `.service` file uses `/usr/bin/node` on purpose. Do **not**
+> switch it to an nvm path like `~/.nvm/versions/node/v24.13.0/bin/node`: nvm
+> paths are version-pinned and disappear when you upgrade Node, at which point
+> systemd fails every run with `status=203/EXEC` and nothing lands in the log.
+> `/usr/bin/node` (system package) never moves. If you only have Node via nvm,
+> either install the system package or point `ExecStart` at a stable symlink you
+> control.
+
+> **Silent failures.** `contest-notifier.service` has
+> `OnFailure=contest-notifier-failure.service`, which logs the failure and raises a
+> critical desktop notification. If the hourly run ever stops working, you get a
+> pop-up instead of a week of silence. Confirm it is wired up with
+> `systemctl --user show contest-notifier.service -p OnFailure`.
 
 ---
 
@@ -138,6 +148,56 @@ npx tsx src/cli.ts --help
 
 Useful flags: `--force` (ignore poll intervals), `--dry-run`, `--bodies`,
 `--verbose`, `--quiet`, `--non-interactive`.
+
+---
+
+## Troubleshooting
+
+### Nothing is being added to the calendar
+
+Two failures look identical from the outside ("it just stopped"). Check both.
+
+**1. Is the service even starting?** A run that cannot launch leaves no trace in
+the app log, because nothing ran.
+
+```bash
+systemctl --user status contest-notifier.service
+journalctl --user -u contest-notifier.service -n 30
+```
+
+- `status=203/EXEC` — systemd could not run the `ExecStart` binary. Almost always a
+  stale nvm Node path. Use `/usr/bin/node` (see Setup → 5).
+- `status=1` with `Google authorisation failed` in the journal — the token problem
+  below.
+
+**2. Has the Google token expired?** If the log contains `invalid_grant` or
+`re-consent required`, the refresh token is dead and the tool deletes it. Re-authorise:
+
+```bash
+npm run auth
+```
+
+**Why it happens every ~7 days.** Refresh tokens for an OAuth app whose publishing
+status is **Testing** expire after 7 days. The fix is in the Google Cloud console:
+**Google Auth Platform → Audience**. Either
+
+- set User type to **Internal** (Google Workspace accounts only), or
+- click **Publish app** to move from Testing to **In production**.
+
+A workspace ("Internal") project never hits this. A personal Gmail project must be
+published; leaving it on Testing will keep breaking the timer weekly no matter what
+the code does.
+
+### The timer is active but the service result is "failed"
+
+```bash
+systemctl --user list-timers contest-notifier.timer   # is it scheduled?
+systemctl --user show contest-notifier.service -p OnFailure   # is alerting wired?
+```
+
+With `OnFailure` set, a failing run also raises a critical desktop notification and
+writes the `systemctl status` output to the journal under the
+`contest-notifier-failure` tag.
 
 ---
 

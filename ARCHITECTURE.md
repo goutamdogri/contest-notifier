@@ -80,9 +80,14 @@ reason to add it would be `colors.get`, which is never called. A smaller scope s
 means a less alarming consent screen, and it avoids the 403 you get from `colors.get`
 with a `calendar.events`-only token.
 
-The consent screen audience **must** be "Internal" in the Google Cloud console. On
-the "Testing" audience, Google expires refresh tokens for unverified apps after 7
-days, which would silently break the background timer roughly once a week.
+The consent screen audience **must** be "Internal", or the app must be **published**
+(status "In production"). On the "Testing" audience, Google expires refresh tokens for
+unverified apps after 7 days, which silently breaks the background timer roughly once a
+week. "Internal" needs a Workspace organisation; for a personal Gmail account the only
+option is to publish the app. Publishing an unverified app is allowed for personal use
+(it shows a warning and is capped at 100 users) but the Branding page requires a home
+page and privacy policy URL. `docs/` in this repo is served via GitHub Pages for exactly
+that purpose.
 
 ### 1.4 The normalised shape
 
@@ -113,6 +118,14 @@ interface Contest {
 | --- | --- |
 | `contests` | One row per tracked contest: content hash, event id, task id, task hash |
 | `source_state` | Last fetch time, last status, last error **per source** |
+
+`last_fetch_at` is the poll-interval clock. It is advanced **only after the whole run
+succeeds**, not right after the fetch. This matters: if a later step fails (most often
+Google auth), advancing the clock there would discard the freshly fetched contests while
+making the sources look up-to-date, so the next hourly runs would skip them as "not due"
+and the data would be lost until the interval elapsed. Deferring the update makes a
+failed run simply refetch next time. A source that genuinely fails to fetch is recorded
+as `error` with its message and, separately, throttled.
 | `meta` | Small key/value, e.g. the resolved task list id |
 
 The database is a **cache, not the source of truth**. Google is authoritative. If it
@@ -330,8 +343,19 @@ systemctl --user status contest-notifier.timer      # is it armed, when is next
 systemctl --user list-timers contest-notifier.timer
 journalctl --user -u contest-notifier.service -n 50 # recent runs
 journalctl --user -u contest-notifier.service -f     # follow live
+journalctl --user -t contest-notifier-failure -n 20  # captured failure diagnostics
 npm run status                                      # last fetch per source
 ```
+
+**Silent launch failures.** A service that cannot even execute leaves *nothing* in the
+app log, because no app ran. This is what `status=203/EXEC` means: systemd could not
+run the `ExecStart` binary. The classic cause is a version-pinned nvm path
+(`~/.nvm/versions/node/v24.13.0/bin/node`) that disappears when Node is upgraded. The
+unit therefore uses `/usr/bin/node`, and carries `OnFailure=contest-notifier-failure.service`
+so any failure to start — `203/EXEC`, a crash, a non-zero exit, a timeout — raises a
+critical desktop notification and dumps `systemctl status` into the journal tagged
+`contest-notifier-failure`. Check it is wired with
+`systemctl --user show contest-notifier.service -p OnFailure`.
 
 ### 3.7 Boot behaviour
 
@@ -507,7 +531,8 @@ If the refresh token is rejected, the run does not crash:
 | `src/google/auth.ts` | OAuth PKCE, token persistence, refresh |
 | `src/google/calendar.ts` | Event request build, sync, drift, resync |
 | `src/google/tasks.ts` | List discovery, task build, notes-key dedup, prune |
-| `systemd/*` | Service and timer templates (copy, don't edit in place) |
+| `systemd/*` | Service, timer, and `OnFailure` handler templates (copy, don't edit in place) |
+| `docs/*` | GitHub Pages home page and privacy policy for OAuth branding |
 
 ## Test coverage
 
